@@ -4,7 +4,6 @@
 //! It dynamically loads libMFABridge.dylib which contains the Swift implementation.
 
 use candle_core::{DType, Device, Result, Tensor};
-use foreign_types_shared::{ForeignType, ForeignTypeRef};
 use once_cell::sync::OnceCell;
 use std::ffi::c_void;
 use std::ptr;
@@ -84,7 +83,7 @@ type MfaForwardEncodeBiasFn = unsafe extern "C" fn(
     o_ptr: *mut c_void,
     l_ptr: *mut c_void,
     mask_ptr: *mut c_void,
-    attn_bias_ptr: *mut c_void,
+    attn_bias_raw_ptr: *mut c_void,
     q_offset: i64,
     k_offset: i64,
     v_offset: i64,
@@ -328,7 +327,7 @@ pub fn flash_attention_with_mask(
         match storage {
             candle_core::Storage::Metal(s) => {
                 // Get the raw MTLBuffer pointer for FFI
-                Ok(s.buffer().as_ptr() as *mut c_void)
+                Ok(s.buffer().as_raw_ptr() as *mut c_void)
             }
             _ => Err(candle_core::Error::Msg("Expected Metal storage".to_string())),
         }
@@ -366,9 +365,8 @@ pub fn flash_attention_with_mask(
     let _ = mask_storage_ref; // keep alive until after FFI call
 
     // Get candle's command encoder - this ensures MFA work is on the same command buffer
-    let command_buffer = metal_device.command_buffer()?;
-    let encoder = command_buffer.new_compute_command_encoder();
-    let encoder_ptr = encoder.as_ptr() as *mut c_void;
+    let encoder = metal_device.command_encoder()?;
+    let encoder_ptr = encoder.as_raw_ptr() as *mut c_void;
 
     // Call MFA forward_encode (uses the provided encoder)
     let success = unsafe {
@@ -392,8 +390,8 @@ pub fn flash_attention_with_mask(
         )
     };
 
-    // End encoding before commit
-    encoder.end_encoding();
+    // Drop encoder to end encoding
+    drop(encoder);
 
     // Drop storage refs
     drop(q_storage);
@@ -517,7 +515,7 @@ pub fn flash_attention_with_bias(
     fn buffer_to_ptr(storage: &candle_core::Storage) -> Result<*mut c_void> {
         match storage {
             candle_core::Storage::Metal(s) => {
-                Ok(s.buffer().as_ptr() as *mut c_void)
+                Ok(s.buffer().as_raw_ptr() as *mut c_void)
             }
             _ => Err(candle_core::Error::Msg("Expected Metal storage".to_string())),
         }
@@ -544,9 +542,8 @@ pub fn flash_attention_with_bias(
     let bias_offset = (bias_layout.start_offset() * elem_size) as i64;
 
     // Get candle's command encoder
-    let command_buffer = metal_device.command_buffer()?;
-    let encoder = command_buffer.new_compute_command_encoder();
-    let encoder_ptr = encoder.as_ptr() as *mut c_void;
+    let encoder = metal_device.command_encoder()?;
+    let encoder_ptr = encoder.as_raw_ptr() as *mut c_void;
 
     // Call MFA forward_encode_bias
     let success = unsafe {
@@ -572,8 +569,8 @@ pub fn flash_attention_with_bias(
         )
     };
 
-    // End encoding before commit
-    encoder.end_encoding();
+    // Drop encoder to end encoding
+    drop(encoder);
 
     // Drop storage refs
     drop(q_storage);
@@ -672,7 +669,7 @@ pub fn flash_attention_with_repeating_bias(
 
     fn buffer_to_ptr(storage: &candle_core::Storage) -> Result<*mut c_void> {
         match storage {
-            candle_core::Storage::Metal(s) => Ok(s.buffer().as_ptr() as *mut c_void),
+            candle_core::Storage::Metal(s) => Ok(s.buffer().as_raw_ptr() as *mut c_void),
             _ => Err(candle_core::Error::Msg("Expected Metal storage".to_string())),
         }
     }
@@ -697,9 +694,8 @@ pub fn flash_attention_with_repeating_bias(
     let v_offset = (v_layout.start_offset() * elem_size) as i64;
     let bias_offset = (bias_layout.start_offset() * elem_size) as i64;
 
-    let command_buffer = metal_device.command_buffer()?;
-    let encoder = command_buffer.new_compute_command_encoder();
-    let encoder_ptr = encoder.as_ptr() as *mut c_void;
+    let encoder = metal_device.command_encoder()?;
+    let encoder_ptr = encoder.as_raw_ptr() as *mut c_void;
 
     let success = unsafe {
         (mfa.forward_encode_bias)(
