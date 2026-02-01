@@ -1,0 +1,18 @@
+[package]
+name = "candle-mps-flash-attention"
+version = "0.1.0"
+edition = "2021"
+description = "MPS Flash Attention for candle - O(N) memory attention on Apple Silicon"
+license = "MIT"
+repository = "https://github.com/mpsops/candle-mps-flash-attention"
+keywords = ["candle", "metal", "mps", "flash-attention", "apple-silicon"]
+categories = ["science", "mathematics"]
+readme = "README.md"
+
+[dependencies]
+candle-core = { version = "0.8", features = ["metal"] }
+libc = "0.2"
+once_cell = "1.19"
+
+[dev-dependencies]
+anyhow = "1.0"
