@@ -10,7 +10,8 @@ categories = ["science", "mathematics"]
 readme = "README.md"
 
 [dependencies]
-candle-core = { git = "https://github.com/imperatormk/candle", branch = "main", features = ["metal"] }
+candle-core = { version = "0.8", features = ["metal"] }
+foreign-types-shared = "0.3"
 libc = "0.2"
 once_cell = "1.19"
 
