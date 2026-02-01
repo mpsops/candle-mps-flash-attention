@@ -118,26 +118,25 @@ unsafe impl Sync for MfaLibrary {}
 impl MfaLibrary {
     fn load() -> std::result::Result<Self, String> {
         // Try to find libMFABridge.dylib
-        let paths = [
-            // Check environment variable first
-            std::env::var("MFA_BRIDGE_PATH").ok(),
-            // Common locations
-            Some("/Users/zimski/projects/oss/mps-flash-attention/swift-bridge/.build/release/libMFABridge.dylib".to_string()),
-            Some("libMFABridge.dylib".to_string()),
-        ];
+        //
+        // Users must set MFA_BRIDGE_PATH to the path of libMFABridge.dylib.
+        // Build it from: https://github.com/mpsops/mps-flash-attention
+        //   cd swift-bridge && swift build -c release
+        //   export MFA_BRIDGE_PATH=$PWD/.build/release/libMFABridge.dylib
 
-        let mut handle: *mut c_void = ptr::null_mut();
-        for path in paths.iter().flatten() {
-            let c_path = std::ffi::CString::new(path.as_str()).unwrap();
-            handle = unsafe { libc::dlopen(c_path.as_ptr(), libc::RTLD_NOW) };
-            if !handle.is_null() {
-                break;
-            }
-        }
+        let path = std::env::var("MFA_BRIDGE_PATH").map_err(|_| {
+            "MFA_BRIDGE_PATH environment variable not set. \
+             Build libMFABridge.dylib from https://github.com/mpsops/mps-flash-attention: \
+             cd swift-bridge && swift build -c release && \
+             export MFA_BRIDGE_PATH=$PWD/.build/release/libMFABridge.dylib".to_string()
+        })?;
+
+        let c_path = std::ffi::CString::new(path.as_str()).unwrap();
+        let handle = unsafe { libc::dlopen(c_path.as_ptr(), libc::RTLD_NOW) };
 
         if handle.is_null() {
             let err = unsafe { std::ffi::CStr::from_ptr(libc::dlerror()) };
-            return Err(format!("Failed to load libMFABridge.dylib: {:?}", err));
+            return Err(format!("Failed to load libMFABridge.dylib from '{}': {:?}", path, err));
         }
 
         // Load function symbols
