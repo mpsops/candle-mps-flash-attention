@@ -507,6 +507,11 @@ pub fn flash_attention_with_bias(
     let value = value.contiguous()?;
     let attn_bias = attn_bias.contiguous()?;
 
+    // IMPORTANT: Ensure all input tensors are fully computed before dispatching
+    // flash attention. Candle uses lazy GPU execution, and without this sync,
+    // the bias buffer might not be ready when the kernel reads it.
+    metal_device.wait_until_completed()?;
+
     // Create output tensor
     let output = Tensor::zeros(query.dims(), dtype, device)?;
 
@@ -587,8 +592,8 @@ pub fn flash_attention_with_bias(
         return Err(candle_core::Error::Msg("MFA forward_encode_bias returned false".to_string()));
     }
 
-    // Wait for completion
-    metal_device.wait_until_completed()?;
+    // NOTE: We already synced BEFORE to ensure inputs are ready.
+    // Don't sync again here - let caller decide when to sync.
 
     Ok(output)
 }
@@ -667,6 +672,11 @@ pub fn flash_attention_with_repeating_bias(
     let value = value.contiguous()?;
     let attn_bias = attn_bias.contiguous()?;
 
+    // IMPORTANT: Ensure all input tensors are fully computed before dispatching
+    // flash attention. Candle uses lazy GPU execution, and without this sync,
+    // the bias buffer might not be ready when the kernel reads it.
+    metal_device.wait_until_completed()?;
+
     let output = Tensor::zeros(query.dims(), dtype, device)?;
     let logsumexp = Tensor::zeros((batch, num_heads, seq_len_q), DType::F32, device)?;
 
@@ -728,7 +738,8 @@ pub fn flash_attention_with_repeating_bias(
         return Err(candle_core::Error::Msg("MFA forward_encode_bias returned false".to_string()));
     }
 
-    metal_device.wait_until_completed()?;
+    // NOTE: We already synced BEFORE to ensure inputs are ready.
+    // Don't sync again here - let caller decide when to sync.
     Ok(output)
 }
 
