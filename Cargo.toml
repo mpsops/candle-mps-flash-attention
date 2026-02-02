@@ -1,6 +1,6 @@
 [package]
 name = "candle-mps-flash-attention"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "MPS Flash Attention for candle - O(N) memory attention on Apple Silicon"
 license = "MIT"
