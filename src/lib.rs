@@ -507,6 +507,13 @@ pub fn flash_attention_with_bias(
     let value = value.contiguous()?;
     let attn_bias = attn_bias.contiguous()?;
 
+    // IMPORTANT: Ensure all input tensors are fully computed before dispatching
+    // flash attention. Candle uses lazy GPU execution, and without this sync,
+    // the bias buffer might not be ready when the kernel reads it.
+    // This is necessary because we're using a separate command encoder from
+    // Candle's internal one, so prior operations may not have completed.
+    metal_device.wait_until_completed()?;
+
     // Create output tensor
     let output = Tensor::zeros(query.dims(), dtype, device)?;
 
@@ -665,6 +672,13 @@ pub fn flash_attention_with_repeating_bias(
     let value = value.contiguous()?;
     let attn_bias = attn_bias.contiguous()?;
 
+    // IMPORTANT: Ensure all input tensors are fully computed before dispatching
+    // flash attention. Candle uses lazy GPU execution, and without this sync,
+    // the bias buffer might not be ready when the kernel reads it.
+    // This is necessary because we're using a separate command encoder from
+    // Candle's internal one, so prior operations may not have completed.
+    metal_device.wait_until_completed()?;
+
     let output = Tensor::zeros(query.dims(), dtype, device)?;
     let logsumexp = Tensor::zeros((batch, num_heads, seq_len_q), DType::F32, device)?;
 
@@ -713,7 +727,8 @@ pub fn flash_attention_with_repeating_bias(
         )
     };
 
-    encoder.end_encoding();
+    // Drop encoder to end encoding (Drop impl calls end_encoding)
+    drop(encoder);
     drop(q_storage);
     drop(k_storage);
     drop(v_storage);
