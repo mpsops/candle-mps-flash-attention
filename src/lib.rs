@@ -404,8 +404,10 @@ pub fn flash_attention_with_mask(
         return Err(candle_core::Error::Msg("MFA forward_encode returned false".to_string()));
     }
 
-    // Wait for completion - this commits and waits for the command buffer
-    metal_device.wait_until_completed()?;
+    // NOTE: Do NOT wait here - let the caller decide when to sync.
+    // Calling wait_until_completed() inside the function makes it synchronous
+    // and defeats the purpose of async GPU execution.
+    // The output tensor will be valid once the command buffer completes.
 
     Ok(output)
 }
@@ -584,8 +586,7 @@ pub fn flash_attention_with_bias(
         return Err(candle_core::Error::Msg("MFA forward_encode_bias returned false".to_string()));
     }
 
-    // Wait for completion
-    metal_device.wait_until_completed()?;
+    // NOTE: Do NOT wait here - let the caller decide when to sync.
 
     Ok(output)
 }
@@ -724,7 +725,7 @@ pub fn flash_attention_with_repeating_bias(
         return Err(candle_core::Error::Msg("MFA forward_encode_bias returned false".to_string()));
     }
 
-    metal_device.wait_until_completed()?;
+    // NOTE: Do NOT wait here - let the caller decide when to sync.
     Ok(output)
 }
 
